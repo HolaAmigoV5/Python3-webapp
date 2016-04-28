@@ -45,3 +45,9 @@ create table comments (
     key `idx_created_at` (`created_at`),
     primary key (`id`)
 ) engine=innodb default charset=utf8;
+
+insert into blogs values(
+    '0014616744111532ba519979029498489b9a87876d5ca12345',
+    '0014616744111532ba519979029490889b9a87313d5ca37000',
+    'wby','abc','this is a blog','fslfsfjsldfsjfldsafjdslkfgfg',
+    'sfskdffokfelkfjdsklfsjfklsfjslk',1461674411.15372);

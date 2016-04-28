@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import asyncio,os,inspect,logging,functools
+import asyncio,os,inspect,functools
+
+import logging; logging.basicConfig(level=logging.DEBUG)
 
 from urllib import parse
 
@@ -52,7 +54,7 @@ def get_named_kw_args(fn):
     args=[]
     params=inspect.signature(fn).parameters
     for name,param in params.items():
-        if param.kind==inspect.parameters.KEYWORD_ONLY:
+        if param.kind==inspect.Parameter.KEYWORD_ONLY:
             args.append(name)
     return tuple(args)
 
@@ -60,14 +62,14 @@ def get_named_kw_args(fn):
 def has_named_kw_args(fn):
     params=inspect.signature(fn).parameters
     for name,param in params.items():
-        if param.kind==inspect.parameters.KEYWORD_ONLY:
+        if param.kind==inspect.Parameter.KEYWORD_ONLY:
             return True
 
 #如果url处理函数的参数是**kw，返回True
 def has_var_kw_arg(fn):
     params=inspect.signature(fn).parameters
     for name,param in params.items():
-        if param.kind==inspect.parameters.VAR_KEYWORD:
+        if param.kind==inspect.Parameter.VAR_KEYWORD:
             return True
 
 #如果url处理函数的参数是request,返回True
@@ -90,7 +92,7 @@ class RequestHandler(object):
     """docstring for RequestHandler"""
     def __init__(self, app,fn):
         self.app = app
-        self.fn = fn
+        self._func = fn
         #下面的一系列是为了检测url处理函数的参数类型
         self._has_request_arg=has_request_arg(fn)
         self._has_var_kw_arg=has_var_kw_arg(fn)
@@ -106,7 +108,7 @@ class RequestHandler(object):
         #如果处理函数需要传入特定的key的参数或者可变参数的话
         if self._has_var_kw_arg or self._has_named_kw_args or self._request_kw_args:
             #如果是post请求，则读请求的body
-            if request.method='POST':
+            if request.method=='POST':
                 #如果request的头中没有Content-type，则返回错误描述
                 if not request.content_type:
                     return web.HTTPBadRequest('Missing Content_type')
@@ -128,7 +130,7 @@ class RequestHandler(object):
                 else:
                     return web.HTTPBadRequest('Unsupported Content_type:%s'% request.content_type)
             #如果是get请求，则读取url字符串
-            if request.method='GET':
+            if request.method=='GET':
                 #看url有没有参数，即?后面的字符串
                 qs=request.query_string
                 logging.info('qs=%s'%qs)
@@ -173,58 +175,58 @@ class RequestHandler(object):
         except APIError as e:
             return dict(error=e.error,data=e.data,message=e.message)
 
-    #添加静态页面路径
-    def add_static(app):
-        path=os.path.join(os.path.dirname(os.path.abspath(__file__)),'static')
-        app.router.add_static('/static/',path)
-        logging.info('add static %s=>%s'%('/static/',path))
+#添加静态页面路径
+def add_static(app):
+    path=os.path.join(os.path.dirname(os.path.abspath(__file__)),'static')
+    app.router.add_static('/static/',path)
+    logging.info('add static %s=>%s'%('/static/',path))
 
-    def add_route(app,fn):
-        #获取'__method__'和'__route__'属性，如果为空则抛错
-        method=getattr(fn,'__method__',None)
-        path=getattr(fn,'__route__',None)
-        if path is None or method is None:
-            raise ValueError('@get or @post not defined in %s.'%str(fn))
-        #判断fn是不是协程(@asyncio.coroutine)并且判断是不是fn，是不是生成器(generator function)
-        if not asyncio.iscoroutine(fn) and not inspect.isgeneratorfunction(fn):
-            #都不是的话，强行修饰为协程
-            fn=asyncio.coroutine(fn)
-        logging.info('add route %s %s => %s (%s)'%(method,path,fn.__name__,', '.join(inspect.signature(fn).parameters.keys())))
-        #正式注册为响应的URL处理方法
-        #处理方法为RequestHandler的自省函数’__call__‘
-        app.router.add_route(method,path,RequestHandler(app,fn))
+def add_route(app,fn):
+    #获取'__method__'和'__route__'属性，如果为空则抛错
+    method=getattr(fn,'__method__',None)
+    path=getattr(fn,'__route__',None)
+    if path is None or method is None:
+        raise ValueError('@get or @post not defined in %s.'%str(fn))
+    #判断fn是不是协程(@asyncio.coroutine)并且判断是不是fn，是不是生成器(generator function)
+    if not asyncio.iscoroutine(fn) and not inspect.isgeneratorfunction(fn):
+        #都不是的话，强行修饰为协程
+        fn=asyncio.coroutine(fn)
+    logging.info('add route %s %s => %s (%s)'%(method,path,fn.__name__,', '.join(inspect.signature(fn).parameters.keys())))
+    #正式注册为响应的URL处理方法
+    #处理方法为RequestHandler的自省函数’__call__‘
+    app.router.add_route(method,path,RequestHandler(app,fn))
 
-    #自动搜索传入的module_name的module的处理函数
-    def add_routes(app,module_name):
-        #检查传入的module_name是否有'.'
-        n=module_name.rfind('.')
-        logging.info('n=%s',n)
-        #没有’.‘，则传入的是module名
-        #__import__(module)其实就是import module
-        if n==(-1):
-            mod=__import__(module_name,globals(),locals())
-            logging.info('globals=%s',globals()['__name__'])
-        else:
-            #name=module_name[n+1:]
-            #mod=getattr(__import__(module_name[:n],globals(),locals(),[name]),name)
-            #上面两行代码是廖大大的源代码，但是把传入参数module_name的值改为’handlers.py‘的话走这里就报错，所以改成下面
-            mod=__import__(module_name[:n],globals(),locals())
+#自动搜索传入的module_name的module的处理函数
+def add_routes(app,module_name):
+    #检查传入的module_name是否有'.'
+    n=module_name.rfind('.')
+    logging.info('n=%s',n)
+    #没有’.‘，则传入的是module名
+    #__import__(module)其实就是import module
+    if n==(-1):
+        mod=__import__(module_name,globals(),locals())
+        logging.info('globals=%s',globals()['__name__'])
+    else:
+        #name=module_name[n+1:]
+        #mod=getattr(__import__(module_name[:n],globals(),locals(),[name]),name)
+        #上面两行代码是廖大大的源代码，但是把传入参数module_name的值改为’handlers.py‘的话走这里就报错，所以改成下面
+        mod=__import__(module_name[:n],globals(),locals())
 
-        #遍历mod的方法和属性，主要是找处理方法
-        #由于我们定义的处理方法，被@get或者@post修饰过，所以方法里会有'__method__'和'__route__'属性
-        for attr in dir(mod):
-            #如果以'_'开头的，一律pass，我们定义的处理方法不得以'_'开头的
-            if attr.startswith('_'):
-                continue
-            #获取到非'_'开头的属性或方法
-            fn=getattr(mod,attr)
-            #取能调用的，说明是方法
-            if callable(fn):
-                #检测'__method__'和'__route__'属性
-                method=getattr(fn,'__method__',None)
-                path=getattr(fn,'__route__',None)
-                if method and path:
-                    #如果都有，说明使我们定义的处理方法，加到app对象里面处理route中
-                    add_route(app,fn)
+    #遍历mod的方法和属性，主要是找处理方法
+    #由于我们定义的处理方法，被@get或者@post修饰过，所以方法里会有'__method__'和'__route__'属性
+    for attr in dir(mod):
+        #如果以'_'开头的，一律pass，我们定义的处理方法不得以'_'开头的
+        if attr.startswith('_'):
+            continue
+        #获取到非'_'开头的属性或方法
+        fn=getattr(mod,attr)
+        #取能调用的，说明是方法
+        if callable(fn):
+            #检测'__method__'和'__route__'属性
+            method=getattr(fn,'__method__',None)
+            path=getattr(fn,'__route__',None)
+            if method and path:
+                #如果都有，说明使我们定义的处理方法，加到app对象里面处理route中
+                add_route(app,fn)
 
 

@@ -34,7 +34,7 @@ class Page(object):
     #item_count:要显示的条目数量
     #page_index:要显示第几页
     #page_size:每页的条目数量
-    def __init__(self, item_count,page_index=1,page_size=2):
+    def __init__(self, item_count,page_index=1,page_size=4):
         super(Page, self).__init__()
         self.item_count = item_count
         self.page_size = page_size

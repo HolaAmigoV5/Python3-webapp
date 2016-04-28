@@ -12,7 +12,7 @@ import asyncio, os, json, time
 from datetime import datetime
 
 from aiohttp import web
-from jinja2 import Environment,FileSystemloader
+from jinja2 import Environment,FileSystemLoader
 
 from config import configs
 import orm
@@ -41,7 +41,7 @@ def init_jinja2(app,**kw):
     logging.info('set jinja2 templates path:%s'%path)
     #Enviroment是Jinja2中的一个核心类，它的实例用来保存配置，全局对象，以及从本地文件系统或其他位置加载模板
     #这里要加载的模板和配置传给Enviroment，生成Enviroment实例
-    env=Environment(loader=FileSystemloader(path),**options)
+    env=Environment(loader=FileSystemLoader(path),**options)
     #从参数取filter字段
     filters=kw.get('filters',None)
     #如果有传入的过滤器设置，则设置为env的过滤器集合
@@ -91,7 +91,7 @@ def auth_factory(app,handler):
                 logging.info('set current user:%s'% user.email)
                 #user存在则绑定到request上，说明当前用户是合法的
                 request.__user__=user
-        if request.path.startwith('/manage/') and (request.__user__ is None or not request.__user__.admin):
+        if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
             return web.HTTPFound('/signin')
         #执行下一步
         return(yield from handler(request))
@@ -125,7 +125,7 @@ def response_factory(app,handler):
         #如果响应为字符串
         if isinstance(r,str):
             #先判断是不是需要先重定向，是的话直接用重定向的地址重定向
-            if r.startwith('redirect:'):
+            if r.startswith('redirect:'):
                 return web.HTTPFound(r[9:])
             #不是重定向的话，把字符串当做html代码来处理
             resp=web.Response(body=r.encode('utf-8'))
@@ -179,13 +179,14 @@ def datetime_filter(t):
 @asyncio.coroutine
 def init(loop):
     #创建数据库连接池，db参数传递配置文件里面配置的db
+    #yield from print(configs.db)
     yield from orm.create_pool(loop=loop,**configs.db)
     #middlewares设置两个中间处理函数
     #middlewares中每个factory接受两个参数，app和handler(即middlewares中得下一个handler)
     #譬如这里logger_factory的handler参数其实就是response_factory()
     #middlewares的最后一个元素的Handler会通过routes查找到对应的，其实就是routes注册的对应的handler
-    app=web.Application(loop=loop,middlewares[
-        logger_factory,auth_factory,response_factory
+    app=web.Application(loop=loop,middlewares=[
+            logger_factory,auth_factory,response_factory
         ])
     #初始化jinja2模板
     init_jinja2(app,filters=dict(datetime=datetime_filter))
@@ -204,23 +205,22 @@ loop = asyncio.get_event_loop()
 loop.run_until_complete(init(loop))
 loop.run_forever()
 
-'''
-原有简单写法
-def index(request):
-    return web.Response(body=b'<h1>Awesome</h1>')
+
+#原有简单写法
+#def index(request):
+#    return web.Response(body=b'<h1>Awesome</h1>')
 
 #async相当于@asyncio.coroutine
 #await相当于yield from
-async def init(loop):
-    app = web.Application(loop=loop)
-    app.router.add_route('GET', '/', index)   #将URL和函数进行关联
-    srv = await loop.create_server(app.make_handler(), '127.0.0.1', 9000)  #利用asyncio创建TCP服务
-    logging.info('server started at http://127.0.0.1:9000...')
-    return srv
+#async def init(loop):
+#    app = web.Application(loop=loop)
+#    app.router.add_route('GET', '/', index)   #将URL和函数进行关联
+#    srv = await loop.create_server(app.make_handler(), '127.0.0.1', 9000)  #利用asyncio创建TCP服务
+#    logging.info('server started at http://127.0.0.1:9000...')
+#   return srv
 
 #获取EventLoop
-loop = asyncio.get_event_loop()
+#loop = asyncio.get_event_loop()
 #执行
-loop.run_until_complete(init(loop))
-loop.run_forever()
-‘’‘
+#loop.run_until_complete(init(loop))
+#loop.run_forever()
