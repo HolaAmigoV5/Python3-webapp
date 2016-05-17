@@ -126,12 +126,12 @@ def index(*,page='1'):
     else:
         #否则，根据计算出来的offset(取的初始条目index)和limit(取的条数)，来取出条目
         blogs=yield from Blog.findAll(orderBy='created_at desc',limit=(page.offset,page.limit))
-        #返回给浏览器
-        return {
-            '__template__':'blogs.html',
-            'page':page,
-            'blogs':blogs
-        }
+    #返回给浏览器
+    return {
+        '__template__':'blogs.html',
+        'page':page,
+        'blogs':blogs
+    }
 
 #显示所有用户
 @get('/show_all_users')
