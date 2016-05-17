@@ -12,9 +12,9 @@ import os, re
 from datetime import datetime
 from fabric.api import *
 
-env.user = 'wby'
+env.user = 'ubuntu'
 env.sudo_user = 'root'
-env.hosts = ['192.168.1.110']
+env.hosts = ['52.79.164.150']
 
 db_user = 'www-data'
 db_password = 'www-data'
@@ -50,7 +50,7 @@ def build():
     '''
     includes = ['static', 'templates', 'favicon.ico', '*.py']
     excludes = ['test', '.*', '*.pyc', '*.pyo']
-    local('rm -f dist/%s' % _TAR_FILE)                 #local()来运行本地命令
+    local('rm -rf dist/%s' % _TAR_FILE)                 #local()来运行本地命令
     with lcd(os.path.join(_current_path(), 'www')):    #with lcd(path)可以把当前命令的目录设置为lcd()指定的目录
         cmd = ['tar', '--dereference', '-czvf', '../dist/%s' % _TAR_FILE]
         cmd.extend(['--exclude=\'%s\'' % ex for ex in excludes])
